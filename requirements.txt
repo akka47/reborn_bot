@@ -1,0 +1,5 @@
+python-telegram-bot
+ujson
+pylast
+requests
+toml
