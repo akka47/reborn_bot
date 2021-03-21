@@ -15,7 +15,7 @@ from telegram.constants import PARSEMODE_HTML
 from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # Load config
-with open("config.toml", "r") as config_file:
+with open("config/config.toml", "r") as config_file:
     CONFIG = toml.load(config_file)
 
 # Network setup
@@ -24,7 +24,7 @@ network = pylast.LastFMNetwork(api_key=CONFIG["api"]["lastfm_api_key"],
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
@@ -34,29 +34,37 @@ logger = logging.getLogger(__name__)
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update: Update, _: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
-    update.message.reply_text('Buenas, vengo a reemplazar a otouto. RIP.')
+    update.message.reply_text("Buenas, vengo a reemplazar a otouto. RIP.")
 
 
 def help_command(update: Update, _: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
-    update.message.reply_text('Preguntale a akka.')
+    update.message.reply_text("Preguntale a akka.")
 
 
 def weather(update: Update, _: CallbackContext) -> None:
     """Get weather forecast"""
-    location: str = update.message.text.split("/clima")[-1].strip()
+    location: str = update.message.text.split("/weather")[-1].strip()
     if not location:
         location = "Buenos Aires"
 
-    url = f'http://api.openweathermap.org/data/2.5/weather?q=' \
-          f'{location}&units=metric&lang=es&appid=' \
-          f'{CONFIG["api"]["openweathermap_token"]}'
+    url = f"http://api.openweathermap.org/data/2.5/weather?q=" \
+          f"{location}&units=metric&lang=es&appid=" \
+          f"{CONFIG['api']['openweathermap_token']}"
     r = requests.get(url).json()
-    temperature = r['main']['temp']
-    description = r['weather'][0]['description']
-
+    temperature = r["main"]["temp"]
+    description = r["weather"][0]["description"]
+    icon = r["weather"][0]["icon"]
+    with open("config/weather_emojis.json", "r") as weather_file:
+        weather_emojis = ujson.load(weather_file)
+    weather_file.close()
+    try:
+        weather_emoji = weather_emojis[icon]
+    except KeyError:
+        weather_emoji = ""
     update.message.reply_text(
-        f"{location.title()}: {round(temperature)}°, {description}")
+        f"{location.title()}: {weather_emoji} {round(temperature)}°,"
+        f" {description}")
 
 
 def shout(update: Update, _: CallbackContext) -> None:
@@ -68,10 +76,10 @@ def setlastfm(update: Update, _: CallbackContext) -> None:
     lastfm_username = update.message.text.split("/setlastfm")[-1].strip()
 
     if lastfm_username:
-        with open("lastfm_users.json", "r") as json_file:
+        with open("config/lastfm_users.json", "r") as json_file:
             data = ujson.load(json_file)
         json_file.close()
-        with open("lastfm_users.json", "w") as json_file:
+        with open("config/lastfm_users.json", "w") as json_file:
             data[update.message.from_user.username] = lastfm_username
             ujson.dump(data, json_file)
     else:
@@ -83,7 +91,7 @@ def setlastfm(update: Update, _: CallbackContext) -> None:
 
 def npfull(update: Update, _: CallbackContext) -> None:
     """Show playing song using last.fm API"""
-    with open('lastfm_users.json') as json_file:
+    with open("config/lastfm_users.json") as json_file:
         data = ujson.load(json_file)
 
     user = update.message.from_user
@@ -100,24 +108,28 @@ def npfull(update: Update, _: CallbackContext) -> None:
     now_playing = lastfm_user.get_now_playing()
     if not now_playing:
         now_playing = lastfm_user.get_recent_tracks(1)[0].track
-    try:
-        album_art = now_playing.info["image"][-1]
-    except KeyError:
+        now_playing_text = f"{user.full_name} escuchó por última vez:"
+    else:
+        now_playing_text = f"{user.full_name} está escuchando:"
+
+    album = now_playing.get_album()
+    album_art = album.get_cover_image()
+    if not album_art:
         album_art = "https://i.ibb.co/wLh5Gsc/image.png"
 
     song_info = f"""
-{user.full_name} está escuchando:
+{now_playing_text}
 🎵 {now_playing.title}
-💿 {now_playing.get_album()}
-👤 {now_playing.artist}
-<a href='{album_art}'>&#8205;</a>
+💿 {album.title}
+👤 {album.artist}
+<a href="{album_art}">&#8205;</a>
 """
     update.message.reply_text(song_info, parse_mode=PARSEMODE_HTML)
 
 
 def recommend(update: Update, _: CallbackContext) -> None:
     """Recommend a song to user"""
-    with open('lastfm_users.json') as json_file:
+    with open("config/lastfm_users.json") as json_file:
         data = ujson.load(json_file)
 
     user = update.message.from_user
@@ -150,7 +162,7 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("setlastfm", setlastfm))
     dispatcher.add_handler(CommandHandler("npfull", npfull))
     dispatcher.add_handler(CommandHandler("recommend", recommend))
-    dispatcher.add_handler(CommandHandler("clima", weather))
+    dispatcher.add_handler(CommandHandler("weather", weather))
     dispatcher.add_handler(CommandHandler("shout", shout))
 
     # on noncommand i.e message - echo the message on Telegram
@@ -166,5 +178,5 @@ def main() -> None:
     updater.idle()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
