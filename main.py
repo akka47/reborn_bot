@@ -100,8 +100,10 @@ def npfull(update: Update, _: CallbackContext) -> None:
     now_playing = lastfm_user.get_now_playing()
     if not now_playing:
         now_playing = lastfm_user.get_recent_tracks(1)[0].track
-
-    album_art = now_playing.info["image"][-1]
+    try:
+        album_art = now_playing.info["image"][-1]
+    except KeyError:
+        album_art = "https://s.mxmcdn.net/site/images/album-placeholder.png"
 
     song_info = f"""
 {user.full_name} está escuchando:
