@@ -95,10 +95,11 @@ def npfull(update: Update, _: CallbackContext) -> None:
         return
     json_file.close()
 
-    now_playing = network.get_user(lastfm_user).get_now_playing()
+    lastfm_user = network.get_user(lastfm_user)
+    now_playing = lastfm_user.get_now_playing()
     if not now_playing:
-        now_playing = network.get_user(lastfm_user).get_recent_tracks(1)[0]
-    update.message.reply_text(str(now_playing.track))
+        now_playing = lastfm_user.get_recent_tracks(1)[0].track
+    update.message.reply_text(str(now_playing))
 
 
 def recommend(update: Update, _: CallbackContext) -> None:
