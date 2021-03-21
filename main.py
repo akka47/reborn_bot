@@ -44,7 +44,7 @@ def help_command(update: Update, _: CallbackContext) -> None:
 
 def weather(update: Update, _: CallbackContext) -> None:
     """Get weather forecast"""
-    location: str = update.message.text.split("/tiempo")[-1].strip()
+    location: str = update.message.text.split("/clima")[-1].strip()
     if not location:
         location = "Buenos Aires"
 
@@ -76,7 +76,7 @@ def setlastfm(update: Update, _: CallbackContext) -> None:
             ujson.dump(data, json_file)
     else:
         update.message.reply_text(
-            "Por favor ingrese su nombre de usuario de last.fm")
+            "Ingresá nombre de usuario de last.fm")
         return
     update.message.reply_text("Nombre de usuario establecido.")
 
@@ -91,7 +91,7 @@ def npfull(update: Update, _: CallbackContext) -> None:
         lastfm_user = data[user.username]
     except KeyError:
         update.message.reply_text(
-            "Por favor establecé tu nombre de usuario de last.fm usando "
+            "Establecé tu nombre de usuario de last.fm usando "
             "/setlastfm <username>")
         return
     json_file.close()
@@ -150,7 +150,7 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("setlastfm", setlastfm))
     dispatcher.add_handler(CommandHandler("npfull", npfull))
     dispatcher.add_handler(CommandHandler("recommend", recommend))
-    dispatcher.add_handler(CommandHandler("tiempo", weather))
+    dispatcher.add_handler(CommandHandler("clima", weather))
     dispatcher.add_handler(CommandHandler("shout", shout))
 
     # on noncommand i.e message - echo the message on Telegram
