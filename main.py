@@ -11,6 +11,7 @@ import ujson
 import toml
 
 from telegram import Update
+from telegram.constants import PARSEMODE_HTML
 from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # Load config
@@ -99,7 +100,17 @@ def npfull(update: Update, _: CallbackContext) -> None:
     now_playing = lastfm_user.get_now_playing()
     if not now_playing:
         now_playing = lastfm_user.get_recent_tracks(1)[0].track
-    update.message.reply_text(str(now_playing))
+
+    album_art = now_playing.info["image"][-1]
+
+    song_info = f"""
+{user.full_name} está escuchando:
+🎵 {now_playing.title}
+💿 {now_playing.get_album()}
+👤 {now_playing.artist}
+<a href='{album_art}'>&#8205;</a>
+"""
+    update.message.reply_text(song_info, parse_mode=PARSEMODE_HTML)
 
 
 def recommend(update: Update, _: CallbackContext) -> None:
