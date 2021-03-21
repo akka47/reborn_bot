@@ -103,7 +103,7 @@ def npfull(update: Update, _: CallbackContext) -> None:
     try:
         album_art = now_playing.info["image"][-1]
     except KeyError:
-        album_art = "https://s.mxmcdn.net/site/images/album-placeholder.png"
+        album_art = "https://i.ibb.co/wLh5Gsc/image.png"
 
     song_info = f"""
 {user.full_name} está escuchando:
