@@ -3,6 +3,7 @@
 
 import logging
 import random
+import os.path
 from typing import Dict
 
 import pylast
@@ -13,6 +14,11 @@ import toml
 from telegram import Update
 from telegram.constants import PARSEMODE_HTML
 from telegram.ext import Updater, CommandHandler, CallbackContext
+
+# constants
+USERS_MAP_PATH = "config/lastfm_users.json"
+
+lastfm_cache = {}
 
 # Load config
 with open("config/config.toml", "r") as config_file:
@@ -28,6 +34,21 @@ logging.basicConfig(
     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+
+
+# TODO: move to helpers file
+def get_lastfm_user(telegram_username: str) -> str:
+    lastfm_user = lastfm_cache.get(telegram_username)
+
+    if lastfm_user is None:
+        logger.warning("cache MISS for user %s" % telegram_username)
+
+        with open(USERS_MAP_PATH) as json_file:
+            data = ujson.load(json_file)
+
+        lastfm_user = data.get(telegram_username)
+
+    return lastfm_user
 
 
 # Define a few command handlers. These usually take the two arguments update and
@@ -74,35 +95,35 @@ def shout(update: Update, _: CallbackContext) -> None:
 
 def setlastfm(update: Update, _: CallbackContext) -> None:
     lastfm_username = update.message.text.split("/setlastfm")[-1].strip()
-
-    if lastfm_username:
-        with open("config/lastfm_users.json", "r") as json_file:
-            data = ujson.load(json_file)
-        json_file.close()
-        with open("config/lastfm_users.json", "w") as json_file:
-            data[update.message.from_user.username] = lastfm_username
-            ujson.dump(data, json_file)
-    else:
+    if not lastfm_username:
         update.message.reply_text(
             "Ingresá nombre de usuario de last.fm")
         return
+
+    tg_user = update.message.from_user.username
+
+    # persist to filesystem...
+    with open(USERS_MAP_PATH, "r+") as json_file:
+        data = ujson.load(json_file)
+        data[tg_user] = lastfm_username
+        ujson.dump(data, json_file)
+
+    # ...and append to runtime cache
+    lastfm_cache[tg_user] = lastfm_username
+
     update.message.reply_text("Nombre de usuario establecido.")
 
 
 def npfull(update: Update, _: CallbackContext) -> None:
     """Show playing song using last.fm API"""
-    with open("config/lastfm_users.json") as json_file:
-        data = ujson.load(json_file)
 
     user = update.message.from_user
-    try:
-        lastfm_user = data[user.username]
-    except KeyError:
+    lastfm_user = get_lastfm_user(user.username)
+    if lastfm_user is None:
         update.message.reply_text(
             "Establecé tu nombre de usuario de last.fm usando "
             "/setlastfm <username>")
         return
-    json_file.close()
 
     lastfm_user = network.get_user(lastfm_user)
     now_playing = lastfm_user.get_now_playing()
@@ -128,25 +149,30 @@ def npfull(update: Update, _: CallbackContext) -> None:
 
 
 def recommend(update: Update, _: CallbackContext) -> None:
-    """Recommend a song to user"""
-    with open("config/lastfm_users.json") as json_file:
-        data = ujson.load(json_file)
-
     user = update.message.from_user
-    try:
-        lastfm_user = data[user.username]
-    except KeyError:
+    lastfm_user = get_lastfm_user(user.username)
+    if lastfm_user is None:
         update.message.reply_text(
-            "Por favor establecé tu nombre de usuario de last.fm usando "
+            "Establecé tu nombre de usuario de last.fm usando "
             "/setlastfm <username>")
         return
-    json_file.close()
+    """Recommend a song to user"""
 
     url = f"https://www.last.fm/player/station/user/{lastfm_user}/recommended"
     r = requests.get(url).json()
     random_song = random.choice(r["playlist"])
     update.message.reply_text(
         f"{random_song['name']} - {random_song['artists'][0]['name']}")
+
+
+def setup() -> None:
+    # autogenerate user map storage if not exists
+    if not os.path.exists(USERS_MAP_PATH):
+        open(USERS_MAP_PATH, "w").write("{}").close()
+
+    # populate cache on startup
+    with open(USERS_MAP_PATH) as json_file:
+        lastfm_cache = ujson.load(json_file)
 
 
 def main() -> None:
@@ -179,4 +205,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup()
     main()
