@@ -3,6 +3,7 @@
 
 import logging
 import random
+from datetime import datetime
 from typing import Dict
 
 import pylast
@@ -28,6 +29,33 @@ logging.basicConfig(
     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+
+
+def get_lastfm_users() -> Dict[str, str]:
+    with open("config/lastfm_users.json", "r") as json_file:
+        data = ujson.load(json_file)
+    json_file.close()
+    return data
+
+
+def get_lastfm_user(update: Update, username: str) -> str:
+    with open("config/lastfm_users.json", "r") as json_file:
+        data = ujson.load(json_file)
+    json_file.close()
+    try:
+        lastfm_user = data[username]
+        return lastfm_user
+    except KeyError:
+        update.message.reply_text(
+            "Establecé tu nombre de usuario de last.fm usando "
+            "/setlastfm <username>")
+        raise
+
+
+def set_lastfm_users(data: Dict[str, str]) -> None:
+    with open("config/lastfm_users.json", "w") as json_file:
+        ujson.dump(data, json_file)
+    return
 
 
 # Define a few command handlers. These usually take the two arguments update and
@@ -76,12 +104,9 @@ def setlastfm(update: Update, _: CallbackContext) -> None:
     lastfm_username = update.message.text.split("/setlastfm")[-1].strip()
 
     if lastfm_username:
-        with open("config/lastfm_users.json", "r") as json_file:
-            data = ujson.load(json_file)
-        json_file.close()
-        with open("config/lastfm_users.json", "w") as json_file:
-            data[update.message.from_user.username] = lastfm_username
-            ujson.dump(data, json_file)
+        data = get_lastfm_users()
+        data[update.message.from_user.username] = lastfm_username
+        set_lastfm_users(data)
     else:
         update.message.reply_text(
             "Ingresá nombre de usuario de last.fm")
@@ -91,20 +116,9 @@ def setlastfm(update: Update, _: CallbackContext) -> None:
 
 def npfull(update: Update, _: CallbackContext) -> None:
     """Show playing song using last.fm API"""
-    with open("config/lastfm_users.json") as json_file:
-        data = ujson.load(json_file)
 
     user = update.message.from_user
-    try:
-        lastfm_user = data[user.username]
-    except KeyError:
-        update.message.reply_text(
-            "Establecé tu nombre de usuario de last.fm usando "
-            "/setlastfm <username>")
-        return
-    json_file.close()
-
-    lastfm_user = network.get_user(lastfm_user)
+    lastfm_user = network.get_user(get_lastfm_user(update, user.username))
     now_playing = lastfm_user.get_now_playing()
     if not now_playing:
         now_playing = lastfm_user.get_recent_tracks(1)[0].track
@@ -129,24 +143,14 @@ def npfull(update: Update, _: CallbackContext) -> None:
 
 def recommend(update: Update, _: CallbackContext) -> None:
     """Recommend a song to user"""
-    with open("config/lastfm_users.json") as json_file:
-        data = ujson.load(json_file)
-
-    user = update.message.from_user
-    try:
-        lastfm_user = data[user.username]
-    except KeyError:
-        update.message.reply_text(
-            "Por favor establecé tu nombre de usuario de last.fm usando "
-            "/setlastfm <username>")
-        return
-    json_file.close()
+    user = update.message.from_user.username
+    lastfm_user = get_lastfm_user(update, user)
 
     url = f"https://www.last.fm/player/station/user/{lastfm_user}/recommended"
     r = requests.get(url).json()
-    random_song = random.choice(r["playlist"])
-    update.message.reply_text(
-        f"{random_song['name']} - {random_song['artists'][0]['name']}")
+    random_songs = random.choices(r["playlist"], k=5)
+    random_songs = [f"{song['artists'][0]['name']} - {song['name']}" for song in random_songs]
+    update.message.reply_text("\n".join(random_songs))
 
 
 def main() -> None:
